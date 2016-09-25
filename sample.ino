@@ -90,7 +90,7 @@ void loop()
 			if (message.indexOf(F("SMS")) != -1)
 			{
 				Serial.println(F("Sending sms"));
-				Sim800.sendSms("+33614490515", "Hello World !");
+				Sim800.sendSms("+3361xxxxxxx", "Hello World !");
 			}
 			if (message.indexOf(F("RESET")) != -1)
 			{
