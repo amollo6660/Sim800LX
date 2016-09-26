@@ -201,7 +201,7 @@ void smsTreatCommand(Sim800LX::smsReader * smsCommand)
 		lcd.print(F("Sending sms     "));
 
 		Serial.println(F("Sending sms"));
-		Sim800.sendSms("+33614490515", "Hello World !");
+		Sim800.sendSms("+336XXXXXXXX", "Hello World !");
 	}
 
 	// Read SMS
