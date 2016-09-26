@@ -159,15 +159,28 @@ bool Sim800LX::waitOK(void)
 // Wait xxx response
 bool Sim800LX::waitResponse(const __FlashStringHelper * response)
 {
-	uint8_t timeout = 0;
-	while(_readSerial().indexOf(response) == -1 && timeout < RESPONSE_TIME_OUT)
-	{ 
-		timeout++;
-	}
-	if (timeout < RESPONSE_TIME_OUT)
+	if (_readSerial().indexOf(response) != -1)
 		return true;
 	else
 		return false;
+}
+
+// Waiting for good quality signal received
+uint8_t Sim800LX::waitSignal(void)
+{
+	uint8_t counter;
+	uint8_t sig;
+	while ((sig = this->signalQuality()) == 0)
+	{
+		Serial.println(F("Wait for signal ..."));
+		delay(1000);
+		if (counter++ > 30)
+		{
+			this->reset();
+			counter = 0;
+		}
+	}
+	return sig;
 }
 
 // Public initialize method
@@ -176,7 +189,10 @@ void Sim800LX::reset(void)
 	digitalWrite(RESET_PIN, 1);
 	delay(1000);
 	digitalWrite(RESET_PIN, 0);
-	delay(5000);
+	delay(1000);
+
+	// wait for ready answer ...
+	waitResponse(F("+CIEV"));
 }
 
 // Put module into sleep mode
@@ -210,6 +226,7 @@ bool Sim800LX::setPhoneFunctionality(uint8_t mode)
 {
 	sendAtPlusCommand(F("CFUN="), false);
 	sendCommand(String(mode, DEC));
+	waitOK();
 }
 
 // Check signal quality
@@ -244,38 +261,64 @@ bool Sim800LX::sendSms(char * number, char * text)
 		return false;
 }
 
-// Get an indexed Sms
-String Sim800LX::getNumberSms(uint8_t index)
+// Private method for jump in buffer posititon
+void Sim800LX::nextBuffer(void)
 {
-	_buffer = readSms(index);
-	Serial.println(_buffer.length());
-	if (_buffer.length() > 10) //avoid empty sms
-	{
-		uint8_t _idx1 = _buffer.indexOf(F("+CMGR:"));
-		_idx1 = _buffer.indexOf(F("\",\""), _idx1 + 1);
-		return _buffer.substring(_idx1 + 3, _buffer.indexOf(F("\",\""), _idx1 + 4));
-	}
-	else
-		return F("");
+	_buffer = _buffer.substring(_buffer.indexOf(F("\",\"")) + 2);
 }
 
-// Read an indexed Sms
-String Sim800LX::readSms(uint8_t index)
+// Get an indexed Sms
+Sim800LX::smsReader * Sim800LX::readSms(uint8_t index)
 {
+	// Put module in SMS text mode
 	sendAtPlusCommand(F("CMGF=1"));
+
+	// If no error ...
 	if ((_readSerial().indexOf(F("ER"))) == -1)
 	{
+		// Read the indexed SMS
 		sendAtPlusCommand(F("CMGR="), false);
-		sendCommand(index);
+		sendCommand(String(index, DEC));
 
+		// Read module response
 		_readSerial();
+
+		// If there were an sms
 		if (_buffer.indexOf(F("CMGR:")) != -1)
-			return _buffer;
+		{
+			nextBuffer();
+			String whoSend = _buffer.substring(1, _buffer.indexOf(F("\",\"")));
+			nextBuffer();
+			nextBuffer();
+			nextBuffer();
+			String whenSend = _buffer.substring(0, _buffer.indexOf(F("\"")));
+			nextBuffer();
+			if (_buffer.length() > 10) //avoid empty sms
+			{
+				_buffer = _buffer.substring(_buffer.indexOf(F("\"")) + 3);
+				smsReader * result = new smsReader();
+				result->WhoSend = whoSend;
+				result->WhenSend = whenSend;
+				result->Message = _buffer;
+
+				// Return the sms
+				if (DEBUG_MODE_SET)
+				{
+					Serial.println("who = " + whoSend);
+					Serial.println("when = " + whenSend);
+					Serial.print(F("sms reading = "));
+					Serial.println(_buffer);
+				}
+				return result;
+			}
+			else
+				return nullptr;
+		}
 		else
-			return F("");
+			return nullptr;
 	}
 	else
-		return F("");
+		return nullptr;
 }
 
 // Delete all Sms method
@@ -361,12 +404,14 @@ bool Sim800LX::saveAllSettings(void)
 void Sim800LX::setOnLedFlash(void)
 {
 	sendAtPlusCommand(F("CNETLIGHT=1"));
+	waitOK();
 }
 
 // Change state of module led flash
 void Sim800LX::setOffLedFlash(void)
 {
 	sendAtPlusCommand(F("CNETLIGHT=0"));
+	waitOK();
 }
 
 uint8_t Sim800LX::getReceivePin(void)

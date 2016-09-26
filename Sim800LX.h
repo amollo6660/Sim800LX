@@ -39,8 +39,7 @@
 	#define SIM800_BAUD_RATE_DEFAULT 9600
 
 	// SIM800 Max time out for response
-	#define MAX_TIME_OUT 12000
-	#define RESPONSE_TIME_OUT 10
+	#define MAX_TIME_OUT 1000
 
 	// Set debug mode
 	#define DEBUG_MODE_SET false
@@ -70,7 +69,17 @@
 			// Send carriage return on demande
 			void carriageReturn(bool cr);
 
+			// Private method for jump in buffer posititon
+			void nextBuffer(void);
+
 		public:
+			struct smsReader
+			{
+				String WhoSend;
+				String WhenSend;
+				String Message;
+			};
+
 			// Base constructor
 			Sim800LX(void);
 
@@ -110,7 +119,10 @@
 			bool waitOK(void);
 
 			// Wait xxx response
-			bool waitResponse(const __FlashStringHelper *);
+			bool Sim800LX::waitResponse(const __FlashStringHelper * response);
+
+			// Waiting for good quality signal received
+			uint8_t waitSignal(void);
 
 			// Public initialize method
 			void reset(void);
@@ -137,10 +149,7 @@
 			bool sendSms(char * number, char * text);
 
 			// Get an index Sms
-			String getNumberSms(uint8_t index);
-
-			// Read an indexed Sms
-			String readSms(uint8_t index);
+			smsReader * readSms(uint8_t index);
 
 			// Delete all Sms method
 			bool delAllSms(void);
