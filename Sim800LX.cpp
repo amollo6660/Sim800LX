@@ -63,6 +63,11 @@ void Sim800LX::SetUp(long baudrate, uint8_t receivePin)
 // Send command to module (optimized)
 void Sim800LX::sendCommand(String command, bool cr = true)
 {
+	#ifdef DEBUG_MODE_SET
+		Serial.print(F("sendCommand : "));
+		Serial.println(command);
+	#endif
+
 	this->print(command);
 	carriageReturn(cr);
 }
@@ -70,22 +75,22 @@ void Sim800LX::sendCommand(String command, bool cr = true)
 // Send command to module (optimized)
 void Sim800LX::sendCommand(char command, bool cr = true)
 {
-	this->print(command);
-	carriageReturn(cr);
+	String Command(command);
+	sendCommand(Command, cr);
 }
 
 // Send command to module (optimized)
 void Sim800LX::sendCommand(char * command, bool cr = true)
 {
-	this->print(command);
-	carriageReturn(cr);
+	String Command(command);
+	sendCommand(Command, cr);
 }
 
 // Send command to module (optimized)
 void Sim800LX::sendCommand(const __FlashStringHelper * command, bool cr = true)
 {
-	this->print(command);
-	carriageReturn(cr);
+	String Command(command);
+	sendCommand(Command, cr);
 }
 
 // Send carriage return on demande
@@ -109,43 +114,36 @@ void Sim800LX::sendAtPlusCommand(const __FlashStringHelper * command, bool cr = 
 	sendCommand(command, cr);
 }
 
-//------------------ OVERRIDING ------------------
-// Override write method to insert debug mode
-size_t Sim800LX::write(const char *str)
-{
-	// if debug mode set, output result on serial interface
-	if (DEBUG_MODE_SET)
-		Serial.print(str);
-	return Print::write(str);
-}
-
-// Override write method to insert debug mode
-size_t Sim800LX::write(const char *str, size_t size)
-{
-	// if debug mode set, output result on serial interface
-	if (DEBUG_MODE_SET)
-		Serial.print(str);
-	return Print::write(str, size);
-}
-//------------------ OVERRIDING ------------------
-
 // Private method for reading serial data incomming from Sim800L after a command
 String Sim800LX::_readSerial(void)
 {
+	#ifdef DEBUG_MODE_SET
+		Serial.println(F("_readSerial process..."));
+	#endif
+
 	int timeout = 0;
-	while (!this->available() && timeout < MAX_TIME_OUT)
+	while (!this->available() && timeout++ < MAX_TIME_OUT)
 	{
-		delay(13);
-		timeout++;
+		delay(10);
 	}
 	if (this->available())
 	{
 		_buffer = this->readString();
 
-		// if debug mode set, output result on serial interface
-		if (DEBUG_MODE_SET)
-			Serial.print(_buffer);
+		#ifdef DEBUG_MODE_SET
+			Serial.print(F("result = "));
+			Serial.println(_buffer);
+		#endif
 
+		return _buffer;
+	}
+	else
+	{
+		#ifdef DEBUG_MODE_SET
+			Serial.println("reading timeout !");
+		#endif
+
+		_buffer = F("");
 		return _buffer;
 	}
 }
@@ -159,10 +157,40 @@ bool Sim800LX::waitOK(void)
 // Wait xxx response
 bool Sim800LX::waitResponse(const __FlashStringHelper * response)
 {
-	if (_readSerial().indexOf(response) != -1)
+	#ifdef DEBUG_MODE_SET
+		Serial.print(F("Waiting for response = "));
+		Serial.println(response);
+	#endif
+
+	int counter = 0;
+	while (_readSerial().indexOf(response) == -1 && counter++ < RESPONSE_COUNT_OUT) 
+	{
+		delay(10);
+		if (_buffer.length() > 0)
+			counter = 0;
+
+		#ifdef DEBUG_MODE_SET
+			Serial.print(F("loop wait response : "));
+			Serial.println(String(counter, DEC));
+		#endif
+	}
+
+	if (_buffer.indexOf(response) != -1)
+	{
+		#ifdef DEBUG_MODE_SET
+			Serial.println("Response is OK");
+		#endif
+
 		return true;
+	}
 	else
-		return false;
+		{
+			#ifdef DEBUG_MODE_SET
+				Serial.println("Response time out");
+			#endif
+
+			return false;
+		}
 }
 
 // Waiting for good quality signal received
@@ -172,7 +200,10 @@ uint8_t Sim800LX::waitSignal(void)
 	uint8_t sig;
 	while ((sig = this->signalQuality()) == 0)
 	{
-		Serial.println(F("Wait for signal ..."));
+		#ifdef DEBUG_MODE_SET
+			Serial.println(F("Wait for signal ..."));
+		#endif
+
 		delay(1000);
 		if (counter++ > 30)
 		{
@@ -241,6 +272,15 @@ uint8_t Sim800LX::signalQuality(void)
 // Send a Sms method
 bool Sim800LX::sendSms(char * number, char * text)
 {
+	String Number(number);
+	String Text(text);
+
+	this->sendSms(Number, Text);
+}
+
+// Send a Sms method
+bool Sim800LX::sendSms(String number, String text)
+{
 	sendAtPlusCommand(F("CMGF=1"));
 	_readSerial();
 	sendAtPlusCommand(F("CMGS=\""), false);
@@ -253,12 +293,7 @@ bool Sim800LX::sendSms(char * number, char * text)
 	delay(100);
 	sendCommand((char)26, false);
 
-	_readSerial();
-	//expect CMGS:xxx   , where xxx is a number,for the sending sms.
-	if (((_buffer.indexOf(F("CMGS"))) != -1))
-		return true;
-	else
-		return false;
+	return waitResponse(F("CMGS"));
 }
 
 // Private method for jump in buffer posititon
@@ -302,13 +337,13 @@ Sim800LX::smsReader * Sim800LX::readSms(uint8_t index)
 				result->Message = _buffer;
 
 				// Return the sms
-				if (DEBUG_MODE_SET)
-				{
+				#ifdef DEBUG_MODE_SET
 					Serial.println("who = " + whoSend);
 					Serial.println("when = " + whenSend);
 					Serial.print(F("sms reading = "));
 					Serial.println(_buffer);
-				}
+				#endif
+
 				return result;
 			}
 			else
@@ -321,37 +356,52 @@ Sim800LX::smsReader * Sim800LX::readSms(uint8_t index)
 		return nullptr;
 }
 
+// Delete Indexed Sms method
+bool Sim800LX::delSms(uint8_t index)
+{
+	sendAtPlusCommand(F("CMGD="), false);
+	sendCommand(String(index, DEC), false);
+	sendCommand(F(",0"));
+	return waitOK();
+}
+
 // Delete all Sms method
 bool Sim800LX::delAllSms(void)
 {
 	sendAtPlusCommand(F("CMGDA=\"DEL ALL\""));
-	waitOK();
+	return waitOK();
 }
 
 // Get Rtc internal Timer in decimal and string format
-String Sim800LX::RTCtime(int *day, int *month, int *year, int *hour, int *minute, int *second)
+String Sim800LX::RTCtime(dateTime * result = nullptr)
 {
 	sendAtPlusCommand(F("CCLK?"));
-
-	// if respond with ERROR try one more time. 
 	_readSerial();
-	if ((_buffer.indexOf(F("ERR"))) != -1)
-	{
-		delay(50);
-		sendAtPlusCommand(F("CCLK?"));
-	}
+
 	if ((_buffer.indexOf(F("ERR"))) == -1)
 	{
 		_buffer = _buffer.substring(_buffer.indexOf(F("\"")) + 1, _buffer.lastIndexOf(F("\"")) - 1);
-		*year = _buffer.substring(0, 2).toInt();
-		*month = _buffer.substring(3, 5).toInt();
-		*day = _buffer.substring(6, 8).toInt();
-		*hour = _buffer.substring(9, 11).toInt();
-		*minute = _buffer.substring(12, 14).toInt();
-		*second = _buffer.substring(15, 17).toInt();
+
+		uint8_t year = _buffer.substring(0, 2).toInt();
+		uint8_t month = _buffer.substring(3, 5).toInt();
+		uint8_t day = _buffer.substring(6, 8).toInt();
+		uint8_t hour = _buffer.substring(9, 11).toInt();
+		uint8_t minute = _buffer.substring(12, 14).toInt();
+		uint8_t second = _buffer.substring(15, 17).toInt();
+
+		if (result != nullptr)
+		{
+			result->year = year;
+			result->month = month;
+			result->day = day;
+			result->hour = hour;
+			result->minute = minute;
+			result->second = second;
+		}
+
+		return String(day, DEC) + "/" + String(month, DEC) + "/" + String(year, DEC) + "," +
+			String(hour, DEC) + ":" + String(minute, DEC) + ":" + String(second, DEC);
 	}
-	return String(*day, DEC) + "/" + String(*month, DEC) + "/" + String(*year, DEC) + "," +
-		String(*hour, DEC) + ":" + String(*minute, DEC) + ":" + String(*second, DEC);
 }
 
 // Setup Sim800L to automatic rtc setup from cellular network

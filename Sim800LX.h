@@ -41,8 +41,11 @@
 	// SIM800 Max time out for response
 	#define MAX_TIME_OUT 1000
 
+	// Max response await
+	#define RESPONSE_COUNT_OUT 2
+
 	// Set debug mode
-	#define DEBUG_MODE_SET false
+	// #define DEBUG_MODE_SET
 
 	// Sim800L module class driver
 	class Sim800LX : public SoftwareSerial
@@ -80,6 +83,16 @@
 				String Message;
 			};
 
+			struct dateTime
+			{
+				uint8_t day;
+				uint8_t month;
+				uint8_t year;
+				uint8_t hour;
+				uint8_t minute;
+				uint8_t second;
+			};
+
 			// Base constructor
 			Sim800LX(void);
 
@@ -88,15 +101,7 @@
 
 			// Constructor with capabilities to set rx and tx pin's and also baud rate
 			Sim800LX(uint8_t receivePin, uint8_t transmitPin, long baudrate);
-
-			//------------------ OVERRIDING ------------------
-			// Override write method to insert debug mode
-			virtual size_t write(const char *str);
-
-			// Override write method to insert debug mode
-			virtual size_t write(const char *buffer, size_t size);
-			//------------------ OVERRIDING ------------------
-
+			
 			// Send command to module (optimized)
 			void sendCommand(String command, bool cr = true);
 
@@ -148,14 +153,20 @@
 			// Send a Sms method
 			bool sendSms(char * number, char * text);
 
+			// Send a Sms method
+			bool sendSms(String number, String text);
+
 			// Get an index Sms
 			smsReader * readSms(uint8_t index);
+
+			// Delete Indexed Sms method
+			bool delSms(uint8_t index);
 
 			// Delete all Sms method
 			bool delAllSms(void);
 
 			// Get Rtc internal Timer in decimal and string format
-			String RTCtime(int *day, int *month, int *year, int *hour, int *minute, int *second);
+			String RTCtime(dateTime * result = nullptr);
 
 			// Setup Sim800L to automatic rtc setup from cellular network
 			bool setAutoCellRTC(void);
