@@ -57,9 +57,6 @@
 			// Inner class receive pin datastore
 			uint8_t _ReceivePin;
 
-			// Interrupt method was throwned when receiving data from module
-			void (*interruptMethod)();
-
 			// Private method for reading serial data incomming from Sim800L after a command
 			String _readSerial(void);
 
@@ -132,17 +129,11 @@
 			// Public initialize method
 			void reset(void);
 
+			// Put module into power down mode
+			void powerDownMode(void);
+
 			// Put module into sleep mode
 			void sleepMode(void);
-
-			// Set interrupt method to call when data received
-			void setInterrupt(void * fonction);
-
-			// Attach interrupt pin receive data module
-			void startInterrupt(void);
-
-			// Detach interrupt pin receive data module
-			void stopInterrupt(void);
 
 			// Put device in phone functionality mode
 			bool setPhoneFunctionality(uint8_t mode);

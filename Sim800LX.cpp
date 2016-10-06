@@ -223,6 +223,7 @@ void Sim800LX::reset(void)
 	delay(1000);
 
 	// wait for ready answer ...
+	// waitResponse(F("+CPIN"));
 	waitResponse(F("+CIEV"));
 }
 
@@ -233,23 +234,11 @@ void Sim800LX::sleepMode(void)
 	waitOK();
 }
 
-// Set interrupt method to call when data received
-void Sim800LX::setInterrupt(void * fonction)
+// Put module into power down mode
+void Sim800LX::powerDownMode(void)
 {
-	interruptMethod = fonction;
-}
-
-// Attach interrupt pin receive data module
-void Sim800LX::startInterrupt(void)
-{
-	if (interruptMethod != nullptr)
-		attachInterrupt(digitalPinToInterrupt(_ReceivePin), *interruptMethod, CHANGE);
-}
-
-// Detach interrupt pin receive data module
-void Sim800LX::stopInterrupt(void)
-{
-	detachInterrupt(digitalPinToInterrupt(_ReceivePin));
+	sendAtPlusCommand(F("CPOWD=1"));
+	waitOK();
 }
 
 // Put device in phone functionality mode
